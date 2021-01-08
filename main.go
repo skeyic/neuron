@@ -24,6 +24,5 @@ func main() {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	glog.V(4).Info("Neuron Server starts...")
-	glog.V(4).Infof("CONFIG: %+V", config.Config)
 	glog.Fatal(r.Run(fmt.Sprintf(":%d", config.Config.Port)))
 }
