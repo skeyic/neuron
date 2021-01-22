@@ -24,8 +24,8 @@ func InitRouter() *gin.Engine {
 	user := r.Group("/users")
 	{
 		user.POST("", control.NewUser)
-		user.GET("", control.NotFinished)
-		user.GET(":id", control.NotFinished)
+		user.GET("", control.GetUsers)
+		user.GET(":id", control.GetUser)
 		user.DELETE(":id", control.NotFinished)
 		user.POST(":id/send", control.NotFinished)
 

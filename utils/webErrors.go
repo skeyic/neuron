@@ -20,3 +20,7 @@ func NewWebError(ctx *gin.Context, code int, error string) {
 func NewBadRequestError(ctx *gin.Context, error string) {
 	NewWebError(ctx, http.StatusBadRequest, error)
 }
+
+func NewNotFoundError(ctx *gin.Context, error string) {
+	NewWebError(ctx, http.StatusNotFound, error)
+}
