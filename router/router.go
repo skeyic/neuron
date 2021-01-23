@@ -27,11 +27,11 @@ func InitRouter() *gin.Engine {
 		user.GET("", control.GetUsers)
 		user.GET(":id", control.GetUser)
 		user.DELETE(":id", control.NotFinished)
-		user.POST(":id/send", control.NotFinished)
+		user.POST(":id/send", control.SendAlertToUser)
 
 		bark := user.Group(":id/bark")
 		{
-			bark.POST("", control.NotFinished)
+			bark.POST("", control.AddBarkAlertPostmanToUser)
 			bark.GET("", control.NotFinished)
 			bark.GET(":id", control.NotFinished)
 			bark.DELETE(":id", control.NotFinished)

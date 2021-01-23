@@ -32,12 +32,8 @@ func (m *UsersMaster) Init() error {
 		return err
 	}
 	for _, userByte := range userBytes {
-		var (
-			u = &User{}
-		)
-		err := json.Unmarshal(userByte.Content, &u)
+		u, err := NewUserFromBytes(userByte.Content)
 		if err != nil {
-			glog.Errorf("failed to unmarshal user, byte: %s, err: %v", userByte.Content, err)
 			continue
 		}
 		m.dataMap[u.ID] = u
@@ -68,15 +64,27 @@ func (m *UsersMaster) GetUser(ID string) (user *User) {
 	return
 }
 
-type PostMan interface {
-	Send(title, content string) error
-}
-
 type User struct {
 	ID string `json:"id"`
 	UserInput
-	lock       *sync.RWMutex
-	BarkAlerts map[string]*BarkAlert `json:"alerts"`
+	lock    *sync.RWMutex
+	PostMen map[string]PostMan `json:"postmen"`
+}
+
+func NewUserFromBytes(userByte []byte) (*User, error) {
+	var (
+		u = &User{}
+	)
+	err := json.Unmarshal(userByte, &u)
+	if err != nil {
+		glog.Errorf("failed to unmarshal user, byte: %s, err: %v", userByte, err)
+		return nil, err
+	}
+	u.lock = &sync.RWMutex{}
+	if u.PostMen == nil {
+		u.PostMen = make(map[string]PostMan)
+	}
+	return u, nil
 }
 
 type UserInput struct {
@@ -89,10 +97,10 @@ func (u *UserInput) Validate() error {
 
 func (u *UserInput) ToUser() *User {
 	return &User{
-		ID:         utils.GenerateUUID(),
-		UserInput:  *u,
-		BarkAlerts: nil,
-		lock:       &sync.RWMutex{},
+		ID:        utils.GenerateUUID(),
+		UserInput: *u,
+		PostMen:   make(map[string]PostMan),
+		lock:      &sync.RWMutex{},
 	}
 }
 
@@ -106,16 +114,42 @@ func (u *User) Save() error {
 	return nil
 }
 
-func (u *User) NewAlertService(alertID, alertName string) {
+func (u *User) NewAlertService(barkAlert *BarkAlert) {
 	u.lock.Lock()
-	u.BarkAlerts[alertID] = NewBarkAlert(alertID, alertName)
-	u.lock.RUnlock()
+	u.PostMen[barkAlert.GetID()] = barkAlert
+	u.lock.Unlock()
 }
 
-func (u *User) Send(title, content string) {
+func (u *User) Send(body *AlertBody) {
 	u.lock.RLock()
 	defer u.lock.RUnlock()
-	for _, barkAlert := range u.BarkAlerts {
-		go barkAlert.Send(title, content)
+
+	for _, thePostMan := range u.PostMen {
+		go func(pm PostMan) {
+			err := pm.Send(body)
+			if err != nil {
+				glog.Errorf("POSTMAN send failed, PostMan: %v, err: %v", pm, err)
+			}
+			glog.V(8).Infof("POSTMAN send successfully, PostMan: %v, title: %s", pm, body.Title)
+		}(thePostMan)
 	}
+}
+
+func (u *User) SendByID(id string, body *AlertBody) {
+	u.lock.RLock()
+	thePostMan := u.PostMen[id]
+	u.lock.RUnlock()
+
+	if thePostMan == nil {
+		glog.Errorf("POSTMAN not found, PostMan id: %s", id)
+		return
+	}
+
+	go func(pm PostMan) {
+		err := pm.Send(body)
+		if err != nil {
+			glog.Errorf("POSTMAN send failed, PostMan: %v, err: %v", pm, err)
+		}
+		glog.V(8).Infof("POSTMAN send successfully, PostMan: %v, title: %s", pm, body.Title)
+	}(thePostMan)
 }

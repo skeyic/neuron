@@ -17,8 +17,8 @@ import (
 // @Produce json
 // @Param body  body model.UserInput true "The user input info"
 // @Success 200 {object} model.User	"The user info"
-// @Failure 400 {object} utils.WebError "Bad request"
-// @Failure 500 {object} utils.WebError "Internal error"
+// @Failure 400 {object} utils.WebResponse "Bad request"
+// @Failure 500 {object} utils.WebResponse "Internal error"
 // @Router /users [post]
 func NewUser(c *gin.Context) {
 	var (
@@ -57,8 +57,8 @@ func NewUser(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Success 200 {object} []model.User	"All the user infos"
-// @Failure 400 {object} utils.WebError "Bad request"
-// @Failure 500 {object} utils.WebError "Internal error"
+// @Failure 400 {object} utils.WebResponse "Bad request"
+// @Failure 500 {object} utils.WebResponse "Internal error"
 // @Router /users [get]
 func GetUsers(c *gin.Context) {
 	var (
@@ -77,8 +77,9 @@ func GetUsers(c *gin.Context) {
 // @Produce json
 // @Param id path string true "The user ID"
 // @Success 200 {object} model.User	"The user info"
-// @Failure 400 {object} utils.WebError "Bad request"
-// @Failure 500 {object} utils.WebError "Internal error"
+// @Failure 400 {object} utils.WebResponse "Bad request"
+// @Failure 404 {object} utils.WebResponse "Not found"
+// @Failure 500 {object} utils.WebResponse "Internal error"
 // @Router /users/{id} [get]
 func GetUser(c *gin.Context) {
 	var (
@@ -93,6 +94,86 @@ func GetUser(c *gin.Context) {
 		utils.NewNotFoundError(c, fmt.Sprintf("user %s not found", ID))
 		return
 	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+// @Summary Add BarkAlert postman to user
+// @Tags User
+// @Description send alert to user
+// @Accept json
+// @Produce json
+// @Param id path string true "The user ID"
+// @Param alertBody body model.BarkAlert true "The bark alert postman"
+// @Success 200 {object} model.User "The user after add bark alert postman"
+// @Failure 400 {object} utils.WebResponse "Bad request"
+// @Failure 404 {object} utils.WebResponse "Not found"
+// @Failure 500 {object} utils.WebResponse "Internal error"
+// @Router /users/{id}/bark [post]
+func AddBarkAlertPostmanToUser(c *gin.Context) {
+	var (
+		err       error
+		user      *model.User
+		barkAlert = &model.BarkAlert{}
+	)
+
+	ID := c.Param("id")
+
+	user = model.TheUsersMaster.GetUser(ID)
+	if user == nil {
+		glog.Errorf("user %s not found", ID)
+		utils.NewNotFoundError(c, fmt.Sprintf("user %s not found", ID))
+		return
+	}
+
+	err = c.ShouldBindWith(&barkAlert, binding.JSON)
+	if err != nil {
+		glog.Error("failed to load alert")
+		utils.NewBadRequestError(c, "failed to load alert")
+		return
+	}
+
+	user.NewAlertService(barkAlert)
+
+	c.JSON(http.StatusOK, user)
+}
+
+// @Summary Send alert to user
+// @Tags User
+// @Description send alert to user
+// @Accept json
+// @Produce json
+// @Param id path string true "The user ID"
+// @Param alertBody body model.AlertBody true "The alert body"
+// @Success 200 {object} utils.WebResponse "Ok"
+// @Failure 400 {object} utils.WebResponse "Bad request"
+// @Failure 404 {object} utils.WebResponse "Not found"
+// @Failure 500 {object} utils.WebResponse "Internal error"
+// @Router /users/{id}/send [post]
+func SendAlertToUser(c *gin.Context) {
+	var (
+		err       error
+		user      *model.User
+		alertBody = &model.AlertBody{}
+	)
+
+	ID := c.Param("id")
+
+	user = model.TheUsersMaster.GetUser(ID)
+	if user == nil {
+		glog.Errorf("user %s not found", ID)
+		utils.NewNotFoundError(c, fmt.Sprintf("user %s not found", ID))
+		return
+	}
+
+	err = c.ShouldBindWith(&alertBody, binding.JSON)
+	if err != nil {
+		glog.Error("failed to load alert")
+		utils.NewBadRequestError(c, "failed to load alert")
+		return
+	}
+
+	user.Send(alertBody)
 
 	c.JSON(http.StatusOK, user)
 }
