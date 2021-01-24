@@ -1,0 +1,8 @@
+neuron:
+  restart: always
+  image: localhost:5000/neuron
+  command: /application/neuron -logtostderr -v=4
+  environment:
+    DataFolder: /data
+  ports:
+    - 7474:8000
