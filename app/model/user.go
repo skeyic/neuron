@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"errors"
 	"github.com/golang/glog"
 	"github.com/skeyic/neuron/config"
 	"github.com/skeyic/neuron/utils"
@@ -15,6 +16,10 @@ var (
 		lock:    &sync.RWMutex{},
 		dataMap: make(map[string]*User),
 	}
+)
+
+var (
+	ErrAlertAlreadyExist = errors.New("alert already exist")
 )
 
 type UsersMaster struct {
@@ -67,8 +72,9 @@ func (m *UsersMaster) GetUser(ID string) (user *User) {
 type User struct {
 	ID string `json:"id"`
 	UserInput
-	lock    *sync.RWMutex
-	PostMen map[string]PostMan `json:"postmen"`
+	lock       *sync.RWMutex
+	BarkAlerts []*BarkAlert `json:"bark_alerts"`
+	postMen    map[string]PostMan
 }
 
 func NewUserFromBytes(userByte []byte) (*User, error) {
@@ -80,10 +86,13 @@ func NewUserFromBytes(userByte []byte) (*User, error) {
 		glog.Errorf("failed to unmarshal user, byte: %s, err: %v", userByte, err)
 		return nil, err
 	}
+
 	u.lock = &sync.RWMutex{}
-	if u.PostMen == nil {
-		u.PostMen = make(map[string]PostMan)
+	u.postMen = make(map[string]PostMan)
+	for _, barkAlert := range u.BarkAlerts {
+		u.postMen[barkAlert.ID] = barkAlert
 	}
+
 	return u, nil
 }
 
@@ -99,7 +108,7 @@ func (u *UserInput) ToUser() *User {
 	return &User{
 		ID:        utils.GenerateUUID(),
 		UserInput: *u,
-		PostMen:   make(map[string]PostMan),
+		postMen:   make(map[string]PostMan),
 		lock:      &sync.RWMutex{},
 	}
 }
@@ -116,8 +125,14 @@ func (u *User) Save() error {
 
 func (u *User) NewAlertService(barkAlert *BarkAlert) error {
 	u.lock.Lock()
-	u.PostMen[barkAlert.GetID()] = barkAlert
-	u.lock.Unlock()
+	defer u.lock.Unlock()
+	_, hit := u.postMen[barkAlert.GetID()]
+	if !hit {
+		u.postMen[barkAlert.GetID()] = barkAlert
+		u.BarkAlerts = append(u.BarkAlerts, barkAlert)
+	} else {
+		return ErrAlertAlreadyExist
+	}
 	return u.Save()
 }
 
@@ -125,7 +140,7 @@ func (u *User) Send(body *AlertBody) {
 	u.lock.RLock()
 	defer u.lock.RUnlock()
 
-	for _, thePostMan := range u.PostMen {
+	for _, thePostMan := range u.postMen {
 		go func(pm PostMan) {
 			err := pm.Send(body)
 			if err != nil {
@@ -138,7 +153,7 @@ func (u *User) Send(body *AlertBody) {
 
 func (u *User) SendByID(id string, body *AlertBody) {
 	u.lock.RLock()
-	thePostMan := u.PostMen[id]
+	thePostMan := u.postMen[id]
 	u.lock.RUnlock()
 
 	if thePostMan == nil {
