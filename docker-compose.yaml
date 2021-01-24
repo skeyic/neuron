@@ -3,6 +3,6 @@ neuron:
   image: localhost:5000/neuron
   command: /application/neuron -logtostderr -v=4
   environment:
-    DataFolder: /data
+    DATA_FOLDER: /data
   ports:
     - 7474:8000

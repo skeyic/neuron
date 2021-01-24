@@ -133,7 +133,12 @@ func AddBarkAlertPostmanToUser(c *gin.Context) {
 		return
 	}
 
-	user.NewAlertService(barkAlert)
+	err = user.NewAlertService(barkAlert)
+	if err != nil {
+		glog.Error("failed to save new alert")
+		utils.NewBadRequestError(c, "failed to save new alert")
+		return
+	}
 
 	c.JSON(http.StatusOK, user)
 }

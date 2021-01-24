@@ -114,10 +114,11 @@ func (u *User) Save() error {
 	return nil
 }
 
-func (u *User) NewAlertService(barkAlert *BarkAlert) {
+func (u *User) NewAlertService(barkAlert *BarkAlert) error {
 	u.lock.Lock()
 	u.PostMen[barkAlert.GetID()] = barkAlert
 	u.lock.Unlock()
+	return u.Save()
 }
 
 func (u *User) Send(body *AlertBody) {
